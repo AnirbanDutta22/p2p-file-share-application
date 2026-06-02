@@ -1,20 +1,58 @@
 /**
  * File Transfer Component
  *
- * Handles file selection and displays transfer progress
+ * Drag-and-drop, file selection, and transfer progress with size limits.
  */
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { formatFileSize } from "../utils/fileChunker.js";
+import { LIMITS } from "../config/limits.js";
 
-export default function FileTransfer({ peers, onSendFile, transfers }) {
+export default function FileTransfer({
+  peers,
+  onSendFile,
+  transfers,
+  maxFileSizeBytes = LIMITS.maxFileSizeBytes,
+}) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [selectedPeer, setSelectedPeer] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const [fileError, setFileError] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const maxFileLabel = formatFileSize(maxFileSizeBytes);
+
+  const validateAndSetFile = (file) => {
+    if (!file) return;
+    if (file.size > maxFileSizeBytes) {
+      setFileError(
+        `File exceeds max size of ${maxFileLabel} (${formatFileSize(file.size)} selected)`,
+      );
+      setSelectedFile(null);
+      return;
+    }
+    setFileError(null);
+    setSelectedFile(file);
+  };
 
   const handleFileSelect = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setSelectedFile(file);
-    }
+    validateAndSetFile(e.target.files[0]);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setDragOver(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file) validateAndSetFile(file);
   };
 
   const handleSend = () => {
@@ -22,29 +60,47 @@ export default function FileTransfer({ peers, onSendFile, transfers }) {
       onSendFile(selectedPeer, selectedFile);
       setSelectedFile(null);
       setSelectedPeer("");
-      // Reset file input
-      document.getElementById("file-input").value = "";
+      setFileError(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
   const connectedPeers = peers.filter((p) => p.connected);
 
   return (
-    <div className="file-transfer">
+    <div className="file-transfer panel">
       <h3>Send File</h3>
+      <p className="file-limit-hint">Max file size: {maxFileLabel}</p>
 
       {connectedPeers.length === 0 ? (
         <p className="no-peers">No connected peers available</p>
       ) : (
         <div className="transfer-form">
           <div className="form-group">
-            <label htmlFor="file-input">Select File:</label>
+            <label htmlFor="file-input">Select or drop file</label>
+            <div
+              className={`drop-zone ${dragOver ? "drag-over" : ""}`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) =>
+                e.key === "Enter" && fileInputRef.current?.click()
+              }
+            >
+              <span className="drop-zone-icon">↓</span>
+              <span>Drag & drop a file here, or click to browse</span>
+            </div>
             <input
               id="file-input"
+              ref={fileInputRef}
               type="file"
               onChange={handleFileSelect}
-              className="file-input"
+              className="file-input-hidden"
             />
+            {fileError && <p className="file-error">{fileError}</p>}
             {selectedFile && (
               <div className="file-info">
                 <strong>{selectedFile.name}</strong> (
@@ -71,6 +127,7 @@ export default function FileTransfer({ peers, onSendFile, transfers }) {
           </div>
 
           <button
+            type="button"
             onClick={handleSend}
             disabled={!selectedFile || !selectedPeer}
             className="btn btn-primary"
@@ -80,7 +137,6 @@ export default function FileTransfer({ peers, onSendFile, transfers }) {
         </div>
       )}
 
-      {/* Transfer Progress */}
       {Object.keys(transfers).length > 0 && (
         <div className="transfers">
           <h4>Active Transfers</h4>
@@ -104,39 +160,6 @@ export default function FileTransfer({ peers, onSendFile, transfers }) {
                 <span>{Math.round(transfer.progress)}%</span>
                 <span>{formatFileSize(transfer.fileSize)}</span>
               </div>
-              {/* {(transfer.status === "success" ||
-                transfer.status === "failed") && (
-                <div className="stat-strip">
-                  <div className="stat-card">
-                    <div className="stat-label">
-                      {transfer.status === "failed" ? "transferred" : "speed"}
-                    </div>
-                    <div
-                      className={`stat-val ${transfer.status === "success" ? "ok" : "err"}`}
-                    >
-                      {transfer.status === "success"
-                        ? `${transfer.speedMBps.toFixed(1)} MB/s`
-                        : formatFileSize(transfer.transferred)}
-                    </div>
-                  </div>
-                  <div className="stat-card">
-                    <div className="stat-label">duration</div>
-                    <div className="stat-val">
-                      {transfer.durationSec < 60
-                        ? `${transfer.durationSec.toFixed(1)} s`
-                        : `${(transfer.durationSec / 60).toFixed(1)} min`}
-                    </div>
-                  </div>
-                  <div className="stat-card">
-                    <div className="stat-label">status</div>
-                    <div
-                      className={`stat-val ${transfer.status === "success" ? "ok" : "err"}`}
-                    >
-                      {transfer.status}
-                    </div>
-                  </div>
-                </div>
-              )} */}
             </div>
           ))}
         </div>

@@ -2,16 +2,17 @@
  * Socket Service
  *
  * Manages WebSocket connection to signaling server.
- * Handles all signaling events for WebRTC connection establishment.
  */
 
 import { io } from "socket.io-client";
+import { getVisitorId } from "../utils/visitorId.js";
 
 class SocketService {
   constructor() {
     this.socket = null;
     this.serverUrl =
       import.meta.env.VITE_SIGNALING_SERVER_URL || "http://localhost:3001";
+    this.listenersBound = false;
   }
 
   connect() {
@@ -19,91 +20,135 @@ class SocketService {
       return this.socket;
     }
 
+    if (this.socket && !this.socket.connected) {
+      this.socket.connect();
+      return this.socket;
+    }
+
     this.socket = io(this.serverUrl, {
       transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: Infinity,
     });
 
-    this.socket.on("connect", () => {
-      console.log("[SOCKET] Connected to signaling server:", this.socket.id);
-    });
+    if (!this.listenersBound) {
+      this.listenersBound = true;
 
-    this.socket.on("disconnect", (reason) => {
-      console.log("[SOCKET] Disconnected:", reason);
-    });
+      this.socket.on("connect", () => {
+        console.log("[SOCKET] Connected:", this.socket.id);
+        this.socket.emit("register-visitor", getVisitorId());
+      });
 
-    this.socket.on("connect_error", (error) => {
-      console.error("[SOCKET] Connection error:", error);
-    });
+      this.socket.on("disconnect", (reason) => {
+        console.log("[SOCKET] Disconnected:", reason);
+      });
+
+      this.socket.on("connect_error", (error) => {
+        console.error("[SOCKET] Connection error:", error);
+      });
+    }
+
+    if (this.socket.connected) {
+      this.socket.emit("register-visitor", getVisitorId());
+    }
 
     return this.socket;
+  }
+
+  whenConnected() {
+    return new Promise((resolve) => {
+      const socket = this.connect();
+      if (socket.connected) {
+        resolve(socket);
+        return;
+      }
+      socket.once("connect", () => resolve(socket));
+    });
   }
 
   disconnect() {
     if (this.socket) {
       this.socket.disconnect();
-      this.socket = null;
+      // this.socket = null;
     }
   }
 
-  // Room management
-  joinRoom(roomId) {
+  async joinRoom(roomId) {
+    const socket = await this.whenConnected();
     console.log("[SOCKET] Joining room:", roomId);
-    this.socket.emit("join-room", roomId);
+    socket.emit("join-room", roomId);
   }
 
-  // WebRTC signaling
+  async leaveRoom(roomId) {
+    if (this.socket?.connected) {
+      console.log("[SOCKET] Explicitly leaving room:", roomId);
+      this.socket.emit("leave-room", roomId);
+    }
+  }
+
   sendOffer(offer, targetSocketId) {
-    console.log("[SOCKET] Sending offer to:", targetSocketId);
-    this.socket.emit("offer", { offer, targetSocketId });
+    this.socket?.emit("offer", { offer, targetSocketId });
   }
 
   sendAnswer(answer, targetSocketId) {
-    console.log("[SOCKET] Sending answer to:", targetSocketId);
-    this.socket.emit("answer", { answer, targetSocketId });
+    this.socket?.emit("answer", { answer, targetSocketId });
   }
 
   sendIceCandidate(candidate, targetSocketId) {
-    console.log("[SOCKET] Sending ICE candidate to:", targetSocketId);
-    this.socket.emit("ice-candidate", { candidate, targetSocketId });
+    this.socket?.emit("ice-candidate", { candidate, targetSocketId });
   }
 
-  // Event listeners
   onWebRTCConfig(callback) {
-    this.socket.on("webrtc-config", callback);
+    this.socket?.on("webrtc-config", callback);
   }
 
   onRoomJoined(callback) {
-    this.socket.on("room-joined", callback);
+    this.socket?.on("room-joined", callback);
   }
 
   onPeerJoined(callback) {
-    this.socket.on("peer-joined", callback);
+    this.socket?.on("peer-joined", callback);
   }
 
   onPeerLeft(callback) {
-    this.socket.on("peer-left", callback);
+    this.socket?.on("peer-left", callback);
   }
 
   onOffer(callback) {
-    this.socket.on("offer", callback);
+    this.socket?.on("offer", callback);
   }
 
   onAnswer(callback) {
-    this.socket.on("answer", callback);
+    this.socket?.on("answer", callback);
   }
 
   onIceCandidate(callback) {
-    this.socket.on("ice-candidate", callback);
+    this.socket?.on("ice-candidate", callback);
   }
 
-  // Cleanup
-  removeAllListeners() {
-    if (this.socket) {
-      this.socket.removeAllListeners();
-    }
+  onAppStats(callback) {
+    this.socket?.on("app-stats", callback);
+  }
+
+  offAppStats(callback) {
+    this.socket?.off("app-stats", callback);
+  }
+
+  requestAppStats() {
+    this.socket?.emit("request-app-stats");
+  }
+
+  onAppConfig(callback) {
+    this.socket?.on("app-config", callback);
+  }
+
+  onJoinError(callback) {
+    this.socket?.on("join-error", callback);
+  }
+
+  getSocket() {
+    return this.socket;
   }
 }
 

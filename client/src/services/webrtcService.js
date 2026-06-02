@@ -33,12 +33,19 @@ class WebRTCService {
     // File transfer state
     this.incomingFileData = new Map(); // peerId -> { chunks, metadata }
     this.outgoingFileTransfers = new Map(); // peerId -> transfer state
+    this.peerFingerprints = new Map(); // peerId -> fingerprint string
   }
 
   /**
    * Initialize WebRTC service
    */
   initialize(callbacks = {}) {
+    if (this._initialized) {
+      this.callbacks = { ...this.callbacks, ...callbacks };
+      return;
+    }
+    this._initialized = true;
+
     this.callbacks = {
       onPeerConnected: callbacks.onPeerConnected || (() => {}),
       onPeerDisconnected: callbacks.onPeerDisconnected || (() => {}),
@@ -47,6 +54,7 @@ class WebRTCService {
       onFileReceiveComplete: callbacks.onFileReceiveComplete || (() => {}),
       onFileSendProgress: callbacks.onFileSendProgress || (() => {}),
       onFileSendComplete: callbacks.onFileSendComplete || (() => {}),
+      onPeerFingerprint: callbacks.onPeerFingerprint || (() => {}),
       onError: callbacks.onError || ((err) => console.error(err)),
     };
 
@@ -159,6 +167,7 @@ class WebRTCService {
         pc.iceConnectionState === "completed"
       ) {
         this.callbacks.onPeerConnected(peerId);
+        this.fetchPeerFingerprint(peerId, pc);
       } else if (
         pc.iceConnectionState === "failed" ||
         pc.iceConnectionState === "closed"
@@ -227,6 +236,8 @@ class WebRTCService {
     channel.onopen = () => {
       console.log("[WEBRTC] Data channel opened with:", peerId);
       this.callbacks.onPeerConnected(peerId);
+      const pc = this.peerConnections.get(peerId);
+      if (pc) this.fetchPeerFingerprint(peerId, pc);
     };
 
     channel.onclose = () => {
@@ -280,9 +291,42 @@ class WebRTCService {
     };
   }
 
-  /**
-   * Create and send SDP offer
-   */
+  async fetchPeerFingerprint(peerId, pc) {
+    if (this.peerFingerprints.has(peerId)) {
+      this.callbacks.onPeerFingerprint(
+        peerId,
+        this.peerFingerprints.get(peerId),
+      );
+      return;
+    }
+
+    try {
+      const stats = await pc.getStats();
+      let fingerprint = null;
+
+      stats.forEach((report) => {
+        if (
+          (report.type === "remote-certificate" ||
+            report.type === "certificate") &&
+          report.fingerprint
+        ) {
+          fingerprint = report.fingerprint;
+        }
+      });
+
+      if (fingerprint) {
+        this.peerFingerprints.set(peerId, fingerprint);
+        this.callbacks.onPeerFingerprint(peerId, fingerprint);
+      }
+    } catch (error) {
+      console.warn("[WEBRTC] Could not read peer fingerprint:", error);
+    }
+  }
+
+  getPeerFingerprint(peerId) {
+    return this.peerFingerprints.get(peerId) ?? null;
+  }
+
   async createOffer(peerId, pc) {
     try {
       const offer = await pc.createOffer();
@@ -455,7 +499,7 @@ class WebRTCService {
     if (transfer.currentChunk >= transfer.totalChunks) {
       channel.send(JSON.stringify({ type: "file-end" }));
       console.log("[WEBRTC] File send complete to:", peerId);
-      this.callbacks.onFileSendComplete(peerId);
+      this.callbacks.onFileSendComplete(peerId, transfer.file);
       this.outgoingFileTransfers.delete(peerId);
     } else {
       // Send next chunk
@@ -551,6 +595,7 @@ class WebRTCService {
 
     this.incomingFileData.delete(peerId);
     this.outgoingFileTransfers.delete(peerId);
+    this.peerFingerprints.delete(peerId);
 
     console.log("[WEBRTC] Closed connection with:", peerId);
   }
@@ -562,6 +607,7 @@ class WebRTCService {
     for (const peerId of this.peerConnections.keys()) {
       this.closePeerConnection(peerId);
     }
+    this._initialized = false;
   }
 
   /**

@@ -1,24 +1,31 @@
 /**
  * Peer Status Component
  *
- * Displays connection status for all peers in the room
+ * Displays connection status and DTLS fingerprint for peer verification.
  */
-import { useState } from "react";
-import { generateNickname } from "../utils/nickname";
+import { useState, useEffect } from "react";
+import { generateNickname } from "../utils/nickname.js";
+import { formatVerifyCode } from "../utils/crypto.js";
 
-function usePeerNicknames() {
+function usePeerNicknames(peers) {
   const [nicknames, setNicknames] = useState({});
-  const getNickname = (id) => {
-    if (!nicknames[id]) {
-      const name = generateNickname();
-      setNicknames((prev) => ({ ...prev, [id]: name }));
-      return name;
-    }
-    return nicknames[id];
-  };
+
+  useEffect(() => {
+    setNicknames((prev) => {
+      const next = { ...prev };
+      for (const peer of peers) {
+        if (!next[peer.id]) {
+          next[peer.id] = generateNickname();
+        }
+      }
+      return next;
+    });
+  }, [peers]);
+
   const setNickname = (id, name) =>
     setNicknames((prev) => ({ ...prev, [id]: name }));
-  return { getNickname, setNickname, nicknames };
+
+  return { nicknames, setNickname };
 }
 
 function EditableNickname({ value, onChange }) {
@@ -56,12 +63,42 @@ function EditableNickname({ value, onChange }) {
   );
 }
 
+function PeerFingerprint({ fingerprint }) {
+  const [copied, setCopied] = useState(false);
+  if (!fingerprint) return null;
+
+  const short = formatVerifyCode(
+    fingerprint.replace(/[^a-fA-F0-9]/g, ""),
+    3,
+    4,
+  );
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(fingerprint);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (err) {
+      console.error("Copy failed:", err);
+    }
+  };
+
+  return (
+    <div className="peer-fingerprint">
+      <span className="fingerprint-label">Peer verify</span>
+      <button type="button" className="fingerprint-code" onClick={copy}>
+        {copied ? "Copied!" : short}
+      </button>
+    </div>
+  );
+}
+
 export default function PeerStatus({ peers }) {
-  const { getNickname, setNickname } = usePeerNicknames(peers);
+  const { nicknames, setNickname } = usePeerNicknames(peers);
 
   if (peers.length === 0) {
     return (
-      <div className="peer-status">
+      <div className="peer-status panel">
         <p className="waiting">Waiting for peers to join...</p>
         <p className="hint">
           Share the room ID with someone to start transferring files
@@ -71,11 +108,11 @@ export default function PeerStatus({ peers }) {
   }
 
   return (
-    <div className="peer-status">
+    <div className="peer-status panel">
       <h3>Connected Peers ({peers.length})</h3>
       <div className="peer-list">
         {peers.map((peer) => {
-          const nick = getNickname(peer.id);
+          const nick = nicknames[peer.id] || peer.id.substring(0, 8);
           return (
             <div key={peer.id} className="peer-item">
               <div className="peer-icon">
@@ -87,21 +124,16 @@ export default function PeerStatus({ peers }) {
                     value={nick}
                     onChange={(name) => setNickname(peer.id, name)}
                   />
-                  <span
-                    className="edit-btn"
-                    onClick={() => {
-                      /* triggers via EditableNickname click */
-                    }}
-                  >
-                    edit
-                  </span>
                 </div>
                 <div className="peer-id">{peer.id.substring(0, 8)}</div>
                 <div
                   className={`peer-connection-status ${peer.connected ? "connected" : "connecting"}`}
                 >
-                  {peer.connected ? "🟢 Connected" : "🟡 Connecting..."}
+                  {peer.connected ? "Connected" : "Connecting…"}
                 </div>
+                {peer.connected && (
+                  <PeerFingerprint fingerprint={peer.fingerprint} />
+                )}
               </div>
             </div>
           );

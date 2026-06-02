@@ -1,63 +1,130 @@
 /**
  * Room Manager Component
- *
- * Handles room creation and joining
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { computeRoomVerifyCode } from "../utils/crypto.js";
+import { parseRoomIdInput, buildRoomInviteUrl } from "../utils/roomId.js";
+import { LIMITS } from "../config/limits.js";
 
-export default function RoomManager({ onJoinRoom, currentRoom }) {
+export default function RoomManager({
+  onJoinRoom,
+  currentRoom,
+  maxRoomSize = LIMITS.maxRoomSize,
+  peerCount = 0,
+  joinError = null,
+}) {
   const [roomInput, setRoomInput] = useState("");
+  const [localError, setLocalError] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [roomVerifyCode, setRoomVerifyCode] = useState(null);
 
-  const handleCopy = async () => {
+  useEffect(() => {
+    if (!currentRoom) {
+      setRoomVerifyCode(null);
+      return;
+    }
+    computeRoomVerifyCode(currentRoom).then(setRoomVerifyCode);
+  }, [currentRoom]);
+
+  const handleCopyRoomId = async () => {
     try {
       await navigator.clipboard.writeText(currentRoom);
       setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (err) {
+      console.error("Copy failed:", err);
+    }
+  };
 
-      setTimeout(() => {
-        setCopied(false);
-      }, 1500);
+  const handleCopyInviteLink = async () => {
+    try {
+      await navigator.clipboard.writeText(buildRoomInviteUrl(currentRoom));
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 1500);
     } catch (err) {
       console.error("Copy failed:", err);
     }
   };
 
   const handleCreateRoom = () => {
+    setLocalError(null);
     const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
     onJoinRoom(roomId);
   };
 
   const handleJoinRoom = (e) => {
     e.preventDefault();
-    if (roomInput.trim()) {
-      onJoinRoom(roomInput.trim());
+    setLocalError(null);
+    const result = parseRoomIdInput(roomInput);
+    if (result.error) {
+      setLocalError(result.error);
+      return;
     }
+    onJoinRoom(result.roomId);
   };
+
+  const displayError = localError || joinError;
 
   if (currentRoom) {
     return (
       <div className="room-info panel">
-        <div>
-          <div className="panel-label">Current room</div>
-          <div
-            className={`room-badge ${copied ? "copied" : ""}`}
-            onClick={handleCopy}
-            title="Click to copy room id"
-          >
-            {copied ? "Copied!" : currentRoom}
+        <div className="room-info-top">
+          <div className="room-id-block">
+            <div className="panel-label">Room ID — share this to join</div>
+            <div className="room-id-row">
+              <span className="room-badge-static">{currentRoom}</span>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={handleCopyRoomId}
+              >
+                {copied ? "Copied!" : "Copy ID"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={handleCopyInviteLink}
+              >
+                {linkCopied ? "Link copied!" : "Copy invite link"}
+              </button>
+            </div>
+            <p className="room-hint">
+              Others paste this ID (or the invite link) on the home screen — not
+              the security check below.
+            </p>
           </div>
+
+          {roomVerifyCode && (
+            <div className="room-verify">
+              <div className="panel-label">Security check (optional)</div>
+              <span className="verify-code-readonly" aria-readonly="true">
+                {roomVerifyCode}
+              </span>
+              <p className="verify-hint">
+                After joining, confirm this code matches on every device.{" "}
+                <strong>Do not use this to join a room.</strong>
+              </p>
+            </div>
+          )}
         </div>
-        <p className="room-hint">Share this ID with others to connect</p>
+        <div className="room-meta">
+          <span className="room-capacity">
+            {peerCount + 1} / {maxRoomSize} peers in room
+          </span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="room-manager">
+    <div className="room-manager panel">
       <h2>P2P File Share</h2>
-      <p className="subtitle">
-        End-to-end encrypted, peer-to-peer file transfer
-      </p>
+      <p className="subtitle">Direct peer-to-peer file transfer</p>
+
+      {displayError && (
+        <div className="room-form-error">{displayError}</div>
+      )}
 
       <div className="room-actions">
         <button onClick={handleCreateRoom} className="btn btn-primary">
@@ -69,15 +136,20 @@ export default function RoomManager({ onJoinRoom, currentRoom }) {
         <form onSubmit={handleJoinRoom}>
           <input
             type="text"
-            placeholder="Enter room ID"
+            placeholder="Room ID e.g. ABC123"
             value={roomInput}
-            onChange={(e) => setRoomInput(e.target.value.toUpperCase())}
+            onChange={(e) => {
+              setRoomInput(e.target.value.toUpperCase());
+              setLocalError(null);
+            }}
             className="room-input"
+            autoComplete="off"
+            spellCheck={false}
           />
           <button
             type="submit"
             className="btn btn-secondary"
-            disabled={roomInput === "" ? true : false}
+            disabled={!roomInput.trim()}
           >
             Join Room
           </button>
@@ -85,12 +157,12 @@ export default function RoomManager({ onJoinRoom, currentRoom }) {
       </div>
 
       <div className="info-box">
-        <h3>🔒 Privacy First</h3>
+        <h3>How to join</h3>
         <ul>
-          <li>Files transfer directly between browsers (P2P)</li>
-          <li>No server storage or processing</li>
-          <li>End-to-end encrypted via WebRTC</li>
-          <li>Works across NAT/firewalls using STUN/TURN</li>
+          <li>Ask for the short <strong>Room ID</strong> (6 characters) or invite link</li>
+          <li>The dashed security check code is only for verifying you are in the right room</li>
+          <li>Max {maxRoomSize} peers · max file{" "}
+            {Math.round(LIMITS.maxFileSizeBytes / (1024 * 1024))} MB</li>
         </ul>
       </div>
     </div>
