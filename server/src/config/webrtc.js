@@ -17,31 +17,13 @@ export const ICE_SERVERS = [
     urls: "stun:stun1.l.google.com:19302",
   },
 
-  // TURN server configuration (placeholder - replace with your own)
   // TURN is used ONLY when STUN + direct connection fails
   // This happens when both peers are behind symmetric NATs
-  {
-    urls: "turn:your-turn-server.com:3478",
-    username: "placeholder-username",
-    credential: "placeholder-password",
-  },
-
-  /**
-   * PRODUCTION TURN SETUP:
-   *
-   * Option 1 - Self-hosted (coturn):
-   * {
-   *   urls: 'turn:your-domain.com:3478',
-   *   username: generateTemporaryUsername(),
-   *   credential: generateTemporaryCredential()
-   * }
-   *
-   * Option 2 - Managed service (Twilio TURN):
-   * https://www.twilio.com/stun-turn
-   *
-   * Option 3 - Managed service (Xirsys):
-   * https://xirsys.com/
-   */
+  // {
+  //   urls: "turn:your-turn-server.com:3478",
+  //   username: "placeholder-username",
+  //   credential: "placeholder-password",
+  // },
 ];
 
 /**
