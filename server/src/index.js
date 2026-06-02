@@ -26,6 +26,8 @@ import { Server } from "socket.io";
 import cors from "cors";
 import dotenv from "dotenv";
 import { SignalingService } from "./services/signalingService.js";
+import { StatsService } from "./services/statsService.js";
+import { APP_LIMITS } from "./config/limits.js";
 
 dotenv.config();
 
@@ -45,6 +47,8 @@ app.use(
 );
 
 app.use(express.json());
+
+const statsService = new StatsService();
 
 // Health check endpoint
 app.get("/health", (req, res) => {
@@ -69,16 +73,13 @@ const io = new Server(httpServer, {
   pingInterval: 25000,
 });
 
-// io.on("connection", (socket) => {
-//   io.emit("online-count", io.engine.clientsCount);
-//   socket.on("disconnect", () => {
-//     io.emit("online-count", io.engine.clientsCount);
-//   });
-// });
-
 // Initialize signaling service
-const signalingService = new SignalingService(io);
+const signalingService = new SignalingService(io, statsService);
 signalingService.initialize();
+
+app.get("/api/stats", (req, res) => {
+  res.json(statsService.getSnapshot(signalingService.getOnlineCount()));
+});
 
 const PORT = process.env.PORT || 3001;
 
@@ -89,6 +90,11 @@ httpServer.listen(PORT, () => {
   console.log(`Signaling Server: http://localhost:${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
   console.log(`Allowed Origins: ${allowedOrigins.join(", ")}`);
+  console.log(`Max room size: ${APP_LIMITS.maxRoomSize} peers`);
+  console.log(
+    `Max file size (client): ${Math.round(APP_LIMITS.maxFileSizeBytes / (1024 * 1024))} MB`,
+  );
+  console.log(`Total unique visitors: ${statsService.knownVisitors.size}`);
   console.log("========================================");
   console.log("");
   console.log("This server handles ONLY WebRTC signaling");

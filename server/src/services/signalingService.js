@@ -16,24 +16,59 @@
  */
 
 import { PEER_CONNECTION_CONFIG } from "../config/webrtc.js";
+import { APP_LIMITS } from "../config/limits.js";
 
 export class SignalingService {
-  constructor(io) {
+  constructor(io, statsService) {
     this.io = io;
+    this.statsService = statsService;
 
     // Room tracking: { roomId: Set<socketId> }
     this.rooms = new Map();
 
     // Socket to room mapping: { socketId: roomId }
     this.socketToRoom = new Map();
+
+    /** @type {Map<string, string>} visitorId -> socketId (currently online) */
+    this.onlineVisitors = new Map();
+  }
+
+  getOnlineCount() {
+    return this.onlineVisitors.size;
+  }
+
+  broadcastAppStats() {
+    const snapshot = this.statsService.getSnapshot(this.getOnlineCount());
+    this.io.emit("app-stats", snapshot);
   }
 
   initialize() {
     this.io.on("connection", (socket) => {
       console.log(`[SIGNALING] Client connected: ${socket.id}`);
 
-      // Send WebRTC configuration to client
+      // Send WebRTC configuration and app limits to client
       socket.emit("webrtc-config", PEER_CONNECTION_CONFIG);
+      socket.emit("app-config", APP_LIMITS);
+      socket.emit(
+        "app-stats",
+        this.statsService.getSnapshot(this.getOnlineCount()),
+      );
+
+      socket.on("register-visitor", (visitorId) => {
+        if (!visitorId || typeof visitorId !== "string") return;
+
+        socket.visitorId = visitorId;
+        this.statsService.registerVisitor(visitorId);
+        this.onlineVisitors.set(visitorId, socket.id);
+        this.broadcastAppStats();
+      });
+
+      socket.on("request-app-stats", () => {
+        socket.emit(
+          "app-stats",
+          this.statsService.getSnapshot(this.getOnlineCount()),
+        );
+      });
 
       /**
        * JOIN ROOM EVENT
@@ -45,6 +80,18 @@ export class SignalingService {
        */
       socket.on("join-room", (roomId) => {
         this.handleJoinRoom(socket, roomId);
+      });
+
+      /**
+       * LEAVE ROOM EVENT
+       *
+       * When a user leaves a room:
+       * 1. Remove from the room
+       * 2. Notify existing peers in the room
+       * 3. Send them the list of existing peers
+       */
+      socket.on("leave-room", (roomId) => {
+        this.leaveRoom(socket, roomId);
       });
 
       /**
@@ -118,12 +165,26 @@ export class SignalingService {
        * Clean up when a peer disconnects
        */
       socket.on("disconnect", () => {
+        if (socket.visitorId) {
+          const current = this.onlineVisitors.get(socket.visitorId);
+          if (current === socket.id) {
+            this.onlineVisitors.delete(socket.visitorId);
+          }
+        }
+        this.broadcastAppStats();
         this.handleDisconnect(socket);
       });
     });
   }
 
   handleJoinRoom(socket, roomId) {
+    if (!roomId || typeof roomId !== "string" || !roomId.trim()) {
+      socket.emit("join-error", { message: "Invalid room ID" });
+      return;
+    }
+
+    const normalizedRoomId = roomId.trim().toUpperCase();
+
     // Leave previous room if any
     const previousRoom = this.socketToRoom.get(socket.id);
     if (previousRoom) {
@@ -131,27 +192,36 @@ export class SignalingService {
     }
 
     // Create room if it doesn't exist
-    if (!this.rooms.has(roomId)) {
-      this.rooms.set(roomId, new Set());
+    if (!this.rooms.has(normalizedRoomId)) {
+      this.rooms.set(normalizedRoomId, new Set());
     }
 
     // Get existing peers in the room BEFORE adding new socket
-    const room = this.rooms.get(roomId);
+    const room = this.rooms.get(normalizedRoomId);
     const existingPeers = Array.from(room);
+
+    if (!room.has(socket.id) && room.size >= APP_LIMITS.maxRoomSize) {
+      socket.emit("join-error", {
+        message: `Room is full (max ${APP_LIMITS.maxRoomSize} peers)`,
+        maxRoomSize: APP_LIMITS.maxRoomSize,
+      });
+      return;
+    }
 
     // Add socket to room
     room.add(socket.id);
-    this.socketToRoom.set(socket.id, roomId);
-    socket.join(roomId);
+    this.socketToRoom.set(socket.id, normalizedRoomId);
+    socket.join(normalizedRoomId);
 
     console.log(
-      `[SIGNALING] ${socket.id} joined room ${roomId}. Room size: ${room.size}`,
+      `[SIGNALING] ${socket.id} joined room ${normalizedRoomId}. Room size: ${room.size}`,
     );
 
     // Notify the joining peer about existing peers
     socket.emit("room-joined", {
-      roomId,
+      roomId: normalizedRoomId,
       peers: existingPeers,
+      maxRoomSize: APP_LIMITS.maxRoomSize,
     });
 
     // Notify existing peers about the new peer
