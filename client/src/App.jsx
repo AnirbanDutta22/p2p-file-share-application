@@ -232,7 +232,9 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <div className="logo-group">
-          <div className="logo-mark">⬡</div>
+          <div className="logo-mark">
+            <img src="/logo1.jpeg" alt="reachpeer_logo" />
+          </div>
           <span
             className="logo-wordmark cursor-pointer"
             onClick={handleLeaveRoom}
