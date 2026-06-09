@@ -15,8 +15,14 @@
  *
  */
 
-import { PEER_CONNECTION_CONFIG } from "../config/webrtc.js";
 import { APP_LIMITS } from "../config/limits.js";
+import twilio from "twilio";
+
+// Google's public fallback STUN servers
+const BASE_STUN_SERVERS = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" },
+];
 
 export class SignalingService {
   constructor(io, statsService) {
@@ -31,6 +37,74 @@ export class SignalingService {
 
     /** @type {Map<string, string>} visitorId -> socketId (currently online) */
     this.onlineVisitors = new Map();
+
+    // Initialize Twilio client using environment variables
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+
+    if (accountSid && authToken) {
+      this.twilioClient = twilio(accountSid, authToken);
+      console.log(
+        "[SIGNALING] Twilio Network Traversal client integrated successfully.",
+      );
+    } else {
+      console.warn(
+        "[SIGNALING] Twilio credentials missing in .env. Falling back to default configurations.",
+      );
+      this.twilioClient = null;
+    }
+  }
+
+  async getIceServersConfiguration() {
+    // If Twilio isn't configured, fall back to basic configuration gracefully
+    if (!this.twilioClient) {
+      return { iceServers: BASE_STUN_SERVERS, iceTransportPolicy: "all" };
+    }
+
+    try {
+      // Fetch an ephemeral token array directly from Twilio
+      const tokenInstance = await this.twilioClient.tokens.create();
+
+      const cleanTwilioServers = (
+        tokenInstance.ice_servers ||
+        tokenInstance.iceServers ||
+        []
+      ).map((server) => ({
+        urls: server.urls,
+        // Only include username and credential if they exist (STUN doesn't need them, TURN does)
+        ...(server.username && { username: server.username }),
+        ...(server.credential && { credential: server.credential }),
+      }));
+
+      // Combine baseline free STUN servers with the newly generated TURN paths
+      const dynamicIceServers = [...BASE_STUN_SERVERS, ...cleanTwilioServers];
+
+      // console.log(
+      //   "[SIGNALING] Formatted dynamic ICE Servers successfully:",
+      //   dynamicIceServers,
+      // );
+
+      return {
+        iceServers: dynamicIceServers,
+
+        // ICE transport policy
+        // 'all' - try STUN first, fall back to TURN if needed (recommended)
+        // 'relay' - force TURN relay (useful for testing, expensive in production)
+        iceTransportPolicy: "all",
+
+        // Bundle policy - multiplexes media/data over single connection
+        bundlePolicy: "max-bundle",
+
+        // RTCP multiplexing - reduces number of ports needed
+        rtcpMuxPolicy: "require",
+      };
+    } catch (error) {
+      console.error(
+        "[SIGNALING] Failed to generate dynamic Twilio credentials:",
+        error.message,
+      );
+      return { iceServers: BASE_STUN_SERVERS, iceTransportPolicy: "all" };
+    }
   }
 
   getOnlineCount() {
@@ -43,11 +117,12 @@ export class SignalingService {
   }
 
   initialize() {
-    this.io.on("connection", (socket) => {
+    this.io.on("connection", async (socket) => {
       console.log(`[SIGNALING] Client connected: ${socket.id}`);
 
       // Send WebRTC configuration and app limits to client
-      socket.emit("webrtc-config", PEER_CONNECTION_CONFIG);
+      const rtcConfig = await this.getIceServersConfiguration();
+      socket.emit("webrtc-config", rtcConfig);
       socket.emit("app-config", APP_LIMITS);
       socket.emit(
         "app-stats",
