@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 /**
  * Room Manager Component
  */
@@ -19,13 +20,29 @@ export default function RoomManager({
   const [linkCopied, setLinkCopied] = useState(false);
   const [roomVerifyCode, setRoomVerifyCode] = useState(null);
 
+  // UX Optimization: Tracks async actions
+  const [isProcessing, setIsProcessing] = useState(false);
+
   useEffect(() => {
-    if (!currentRoom) {
-      setRoomVerifyCode(null);
-      return;
-    }
-    computeRoomVerifyCode(currentRoom).then(setRoomVerifyCode);
+    // If there is no active room configuration, exit early silently
+    if (!currentRoom) return;
+
+    let isMounted = true;
+    computeRoomVerifyCode(currentRoom).then((code) => {
+      if (isMounted) setRoomVerifyCode(code);
+    });
+
+    return () => {
+      isMounted = false;
+    };
   }, [currentRoom]);
+
+  // Turn off processing indicators once currentRoom transitions or errors arrive
+  useEffect(() => {
+    if (currentRoom || joinError || localError) {
+      setIsProcessing(false);
+    }
+  }, [currentRoom, joinError, localError]);
 
   const handleCopyRoomId = async () => {
     try {
@@ -49,6 +66,7 @@ export default function RoomManager({
 
   const handleCreateRoom = () => {
     setLocalError(null);
+    setIsProcessing(true);
     const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
     onJoinRoom(roomId);
   };
@@ -61,6 +79,7 @@ export default function RoomManager({
       setLocalError(result.error);
       return;
     }
+    setIsProcessing(true);
     onJoinRoom(result.roomId);
   };
 
@@ -122,13 +141,15 @@ export default function RoomManager({
       <h2>P2P File Share</h2>
       <p className="subtitle">Direct peer-to-peer file transfer</p>
 
-      {displayError && (
-        <div className="room-form-error">{displayError}</div>
-      )}
+      {displayError && <div className="room-form-error">{displayError}</div>}
 
       <div className="room-actions">
-        <button onClick={handleCreateRoom} className="btn btn-primary">
-          Create New Room
+        <button
+          onClick={handleCreateRoom}
+          disabled={isProcessing}
+          className="btn btn-primary"
+        >
+          {isProcessing ? "Creating Room..." : "Create New Room"}
         </button>
 
         <div className="divider">OR</div>
@@ -145,13 +166,14 @@ export default function RoomManager({
             className="room-input"
             autoComplete="off"
             spellCheck={false}
+            disabled={isProcessing}
           />
           <button
             type="submit"
             className="btn btn-secondary"
-            disabled={!roomInput.trim()}
+            disabled={!roomInput.trim() || isProcessing}
           >
-            Join Room
+            {isProcessing ? "Joining..." : "Join Room"}
           </button>
         </form>
       </div>
@@ -159,10 +181,18 @@ export default function RoomManager({
       <div className="info-box">
         <h3>How to join</h3>
         <ul>
-          <li>Ask for the short <strong>Room ID</strong> (6 characters) or invite link</li>
-          <li>The dashed security check code is only for verifying you are in the right room</li>
-          <li>Max {maxRoomSize} peers · max file{" "}
-            {Math.round(LIMITS.maxFileSizeBytes / (1024 * 1024))} MB</li>
+          <li>
+            Ask for the short <strong>Room ID</strong> (6 characters) or invite
+            link
+          </li>
+          <li>
+            The dashed security check code is only for verifying you are in the
+            right room
+          </li>
+          <li>
+            Max {maxRoomSize} peers · max file{" "}
+            {Math.round(LIMITS.maxFileSizeBytes / (1024 * 1024))} MB
+          </li>
         </ul>
       </div>
     </div>

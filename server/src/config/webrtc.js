@@ -19,11 +19,21 @@ export const ICE_SERVERS = [
 
   // TURN is used ONLY when STUN + direct connection fails
   // This happens when both peers are behind symmetric NATs
-  // {
-  //   urls: "turn:your-turn-server.com:3478",
-  //   username: "placeholder-username",
-  //   credential: "placeholder-password",
-  // },
+  {
+    username: process.env.USERNAME1,
+    credential: process.env.CREDENTIAL1,
+    urls: process.env.TURN_URL1,
+  },
+  {
+    username: process.env.USERNAME1,
+    credential: process.env.CREDENTIAL1,
+    urls: process.env.TURN_URL2,
+  },
+  {
+    username: process.env.USERNAME1,
+    credential: process.env.CREDENTIAL1,
+    urls: process.env.TURN_URL3,
+  },
 ];
 
 /**
