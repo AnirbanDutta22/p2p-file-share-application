@@ -50,6 +50,10 @@ app.use(express.json());
 
 const statsService = new StatsService();
 
+app.head("/head", (req, res) => {
+  res.sendStatus(200);
+});
+
 // Health check endpoint
 app.get("/health", (req, res) => {
   res.json({
@@ -87,7 +91,8 @@ httpServer.listen(PORT, () => {
   console.log("========================================");
   console.log("P2P File Share - Signaling Server");
   console.log("========================================");
-  console.log(`Signaling Server: http://localhost:${PORT}`);
+  process.env.NODE_ENV === "development" &&
+    console.log(`Signaling Server: http://localhost:${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
   console.log(`Allowed Origins: ${allowedOrigins.join(", ")}`);
   console.log(`Max room size: ${APP_LIMITS.maxRoomSize} peers`);
