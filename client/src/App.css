@@ -610,31 +610,45 @@ body {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--accent);
-  margin-bottom: 12px;
+  margin: 0 0 12px;
 }
 
 .info-box ul {
   list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .info-box li {
+  display: grid;
+  grid-template-columns: 8px 1fr; /* bullet + content */
+  column-gap: 10px;
+  align-items: start;
   font-size: 12px;
+  line-height: 1.5;
   color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .info-box li::before {
   content: "";
   width: 4px;
   height: 4px;
+  margin-top: 0.45em; /* aligns bullet with first line */
   border-radius: 50%;
   background: var(--accent);
-  flex-shrink: 0;
+}
+
+.info-box li strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.info-box li em {
+  font-style: normal;
+  color: var(--text-primary);
 }
 
 /* ── Buttons ────────────────────────────────────── */
@@ -654,6 +668,22 @@ body {
   width: 100%;
   max-width: 360px;
   margin-bottom: 8px;
+}
+
+.btn-small {
+  padding: 3px 6px;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    opacity 0.15s,
+    background 0.15s,
+    color 0.15s;
+  letter-spacing: -0.01em;
+  width: 100%;
+  max-width: 80px;
 }
 
 .btn-primary {
@@ -683,6 +713,17 @@ body {
 }
 
 /* ── Peer Status ────────────────────────────────── */
+
+.local-user-badge {
+  padding: 12px;
+  background-color: var(--bg-hover);
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
 
 .peer-status {
 }
@@ -983,10 +1024,15 @@ body {
 /* ── Footer ─────────────────────────────────────── */
 
 .app-footer {
-  margin-top: 2rem;
+  margin: 2rem 0;
   text-align: center;
   font-size: 12px;
   color: var(--text-tertiary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  row-gap: 10px;
 }
 
 /* ── Error ──────────────────────────────────────── */

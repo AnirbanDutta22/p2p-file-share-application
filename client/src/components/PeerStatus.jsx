@@ -93,8 +93,10 @@ function PeerFingerprint({ fingerprint }) {
   );
 }
 
-export default function PeerStatus({ peers }) {
+export default function PeerStatus({ peers, myId }) {
   const { nicknames, setNickname } = usePeerNicknames(peers);
+
+  const myShortId = myId ? myId.substring(0, 8) : "Connecting...";
 
   if (peers.length === 0) {
     return (
@@ -109,6 +111,19 @@ export default function PeerStatus({ peers }) {
 
   return (
     <div className="peer-status panel">
+      <div className="local-user-badge">
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div className="peer-id" style={{ fontWeight: "bold" }}>
+            Your ID: {myShortId}
+          </div>
+        </div>
+        <span
+          className="peer-connection-status connected"
+          style={{ fontSize: "0.8rem" }}
+        >
+          Active
+        </span>
+      </div>
       <h3>Connected Peers ({peers.length})</h3>
       <div className="peer-list">
         {peers.map((peer) => {

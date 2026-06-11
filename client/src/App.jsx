@@ -193,36 +193,43 @@ export default function App() {
     });
   }, [addReceipt, handleJoinRoom]);
 
-  const handleSendFile = async (peerId, file) => {
-    if (file.size > maxFileSizeBytes) {
-      setError(
-        `File exceeds max size of ${Math.round(maxFileSizeBytes / (1024 * 1024))} MB`,
-      );
-      return;
-    }
+  const handleSendFile = useCallback(
+    async (targetPeerIds, file) => {
+      if (targetPeerIds.length === 0) return;
 
-    try {
-      setTransfers((prev) => ({
-        ...prev,
-        [peerId]: {
-          type: "send",
-          fileName: file.name,
-          fileSize: file.size,
-          progress: 0,
-          file,
-        },
-      }));
+      if (file.size > maxFileSizeBytes) {
+        setError(
+          `File exceeds max size of ${Math.round(maxFileSizeBytes / (1024 * 1024))} MB`,
+        );
+        return;
+      }
 
-      await webrtcService.sendFile(peerId, file);
-    } catch (err) {
-      setError(err.message);
-      setTransfers((prev) => {
-        const next = { ...prev };
-        delete next[peerId];
-        return next;
-      });
-    }
-  };
+      for (const peerId of targetPeerIds) {
+        try {
+          setTransfers((prev) => ({
+            ...prev,
+            [peerId]: {
+              type: "send",
+              fileName: file.name,
+              fileSize: file.size,
+              progress: 0,
+              file,
+            },
+          }));
+
+          await webrtcService.sendFile(peerId, file);
+        } catch (err) {
+          setError(err.message);
+          setTransfers((prev) => {
+            const next = { ...prev };
+            delete next[peerId];
+            return next;
+          });
+        }
+      }
+    },
+    [maxFileSizeBytes],
+  );
 
   const dismissReceipt = (id) => {
     setReceipts((prev) => prev.filter((r) => r.id !== id));
@@ -286,7 +293,7 @@ export default function App() {
               peerCount={peers.length}
             />
             <div className="app-content">
-              <PeerStatus peers={peers} />
+              <PeerStatus peers={peers} myId={socketService.socket?.id} />
               <FileTransfer
                 peers={peers}
                 onSendFile={handleSendFile}
@@ -315,12 +322,15 @@ export default function App() {
       </main>
 
       <footer className="app-footer">
-        <span className="footer-icon">⬡</span>
-        <p className="footer-text">
+        <div className="logo-mark">
+          <img src="/logo1.jpeg" alt="reachpeer_logo" />
+        </div>
+        {/* <p className="footer-text">
           <strong>How it works:</strong> Share the Room ID or invite link to
           join. Use the security check code only to confirm everyone is in the
           same room.
-        </p>
+        </p> */}
+        <p className="footer-text">Copyright © 2026 ReachPeer/Anirban Dutta</p>
       </footer>
     </div>
   );

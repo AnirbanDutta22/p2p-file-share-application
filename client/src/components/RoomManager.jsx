@@ -179,19 +179,38 @@ export default function RoomManager({
       </div>
 
       <div className="info-box">
-        <h3>How to join</h3>
+        <h3>Getting Started</h3>
+
         <ul>
           <li>
-            Ask for the short <strong>Room ID</strong> (6 characters) or invite
-            link
+            <div>
+              <strong>To share files:</strong> Click <em>"Create New Room"</em>,
+              then copy and share the Room ID or invite link with the other
+              devices.
+            </div>
           </li>
+
           <li>
-            The dashed security check code is only for verifying you are in the
-            right room
+            <div>
+              <strong>To receive files:</strong> Paste the 6-character Room ID
+              sent to you into the box above and click <em>"Join Room"</em>.
+            </div>
           </li>
+
           <li>
-            Max {maxRoomSize} peers · max file{" "}
-            {Math.round(LIMITS.maxFileSizeBytes / (1024 * 1024))} MB
+            <div>
+              <strong>Verify connection:</strong> The dashed security code
+              inside the room is optional—it simply lets you double-check that
+              your devices connected to each other safely.
+            </div>
+          </li>
+
+          <li>
+            <div>
+              <strong>Room Limits:</strong> Up to {maxRoomSize} devices can join
+              a single room at once. You can transfer files up to{" "}
+              {Math.round(LIMITS.maxFileSizeBytes / (1024 * 1024))} MB in size.
+            </div>
           </li>
         </ul>
       </div>
