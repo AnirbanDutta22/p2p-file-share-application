@@ -111,8 +111,8 @@ export class SignalingService {
     return this.onlineVisitors.size;
   }
 
-  broadcastAppStats() {
-    const snapshot = this.statsService.getSnapshot(this.getOnlineCount());
+  async broadcastAppStats() {
+    const snapshot = await this.statsService.getSnapshot(this.getOnlineCount());
     this.io.emit("app-stats", snapshot);
   }
 
@@ -120,28 +120,36 @@ export class SignalingService {
     this.io.on("connection", async (socket) => {
       console.log(`[SIGNALING] Client connected: ${socket.id}`);
 
+      // register-visitor is for online count
+      socket.on("register-visitor", async (visitorId) => {
+        if (!visitorId || typeof visitorId !== "string") return;
+
+        // console.log("---------Visitor ID : ->", visitorId);
+        socket.visitorId = visitorId;
+        this.onlineVisitors.set(visitorId, socket.id);
+        await this.broadcastAppStats();
+      });
+
       // Send WebRTC configuration and app limits to client
       const rtcConfig = await this.getIceServersConfiguration();
       socket.emit("webrtc-config", rtcConfig);
       socket.emit("app-config", APP_LIMITS);
       socket.emit(
         "app-stats",
-        this.statsService.getSnapshot(this.getOnlineCount()),
+        await this.statsService.getSnapshot(this.getOnlineCount()),
       );
 
-      socket.on("register-visitor", (visitorId) => {
-        if (!visitorId || typeof visitorId !== "string") return;
-
-        socket.visitorId = visitorId;
-        this.statsService.registerVisitor(visitorId);
-        this.onlineVisitors.set(visitorId, socket.id);
-        this.broadcastAppStats();
+      // register-user is for unique users (who shared file/s)
+      socket.on("register-user", async (userId) => {
+        if (!userId || typeof userId !== "string") return;
+        await this.statsService.registerUser(userId);
+        await this.broadcastAppStats();
       });
 
-      socket.on("request-app-stats", () => {
+      socket.on("request-app-stats", async () => {
         socket.emit(
           "app-stats",
-          this.statsService.getSnapshot(this.getOnlineCount()),
+          await this.statsService.getSnapshot(this.getOnlineCount()),
         );
       });
 
@@ -239,14 +247,14 @@ export class SignalingService {
        *
        * Clean up when a peer disconnects
        */
-      socket.on("disconnect", () => {
+      socket.on("disconnect", async () => {
         if (socket.visitorId) {
           const current = this.onlineVisitors.get(socket.visitorId);
           if (current === socket.id) {
             this.onlineVisitors.delete(socket.visitorId);
           }
         }
-        this.broadcastAppStats();
+        await this.broadcastAppStats();
         this.handleDisconnect(socket);
       });
     });

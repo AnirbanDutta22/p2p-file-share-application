@@ -81,10 +81,6 @@ const io = new Server(httpServer, {
 const signalingService = new SignalingService(io, statsService);
 signalingService.initialize();
 
-app.get("/api/stats", (req, res) => {
-  res.json(statsService.getSnapshot(signalingService.getOnlineCount()));
-});
-
 const PORT = process.env.PORT || 3001;
 
 httpServer.listen(PORT, () => {
@@ -99,7 +95,7 @@ httpServer.listen(PORT, () => {
   console.log(
     `Max file size (client): ${Math.round(APP_LIMITS.maxFileSizeBytes / (1024 * 1024))} MB`,
   );
-  console.log(`Total unique visitors: ${statsService.knownVisitors.size}`);
+  console.log("Online users: ", signalingService.getOnlineCount());
   console.log("========================================");
   console.log("");
   console.log("This server handles ONLY WebRTC signaling");

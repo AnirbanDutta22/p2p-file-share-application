@@ -193,6 +193,21 @@ export default function App() {
     });
   }, [addReceipt, handleJoinRoom]);
 
+  useEffect(() => {
+    if (receipts.length === 0) return;
+
+    // Grab the absolute newest receipt added to the top of the stack
+    const latestReceipt = receipts[0];
+
+    // If the newest entry is a completed download, register the user!
+    if (latestReceipt.direction === "receive") {
+      console.log(
+        "[ANALYTICS] Target completed download receipt. Registering visitor...",
+      );
+      socketService.registerUser();
+    }
+  }, [receipts]);
+
   const handleSendFile = useCallback(
     async (targetPeerIds, file) => {
       if (targetPeerIds.length === 0) return;
@@ -218,6 +233,7 @@ export default function App() {
           }));
 
           await webrtcService.sendFile(peerId, file);
+          socketService.registerUser();
         } catch (err) {
           setError(err.message);
           setTransfers((prev) => {

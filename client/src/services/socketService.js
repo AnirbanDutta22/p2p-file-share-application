@@ -16,12 +16,10 @@ class SocketService {
   }
 
   connect() {
-    if (this.socket?.connected) {
-      return this.socket;
-    }
-
-    if (this.socket && !this.socket.connected) {
-      this.socket.connect();
+    if (this.socket) {
+      if (!this.socket.connected) {
+        this.socket.connect();
+      }
       return this.socket;
     }
 
@@ -38,6 +36,7 @@ class SocketService {
       this.socket.on("connect", () => {
         console.log("[SOCKET] Connected:", this.socket.id);
         this.socket.emit("register-visitor", getVisitorId());
+        // console.log("register visitor emitted...");
       });
 
       this.socket.on("disconnect", (reason) => {
@@ -47,10 +46,6 @@ class SocketService {
       this.socket.on("connect_error", (error) => {
         console.error("[SOCKET] Connection error:", error);
       });
-    }
-
-    if (this.socket.connected) {
-      this.socket.emit("register-visitor", getVisitorId());
     }
 
     return this.socket;
@@ -133,6 +128,10 @@ class SocketService {
 
   offAppStats(callback) {
     this.socket?.off("app-stats", callback);
+  }
+
+  registerUser() {
+    this.socket?.emit("register-user", getVisitorId());
   }
 
   requestAppStats() {
