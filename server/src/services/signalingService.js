@@ -116,6 +116,81 @@ export class SignalingService {
     this.io.emit("app-stats", snapshot);
   }
 
+  // Validate whether two peers are allowed to exchange signaling messages
+  validatePeerCommunication(senderSocketId, targetSocketId) {
+    // Sender cannot signal themselves
+    if (senderSocketId === targetSocketId) {
+      return {
+        valid: false,
+        reason: "Sender cannot signal themselves.",
+      };
+    }
+
+    const senderRoom = this.socketToRoom.get(senderSocketId);
+    if (!senderRoom) {
+      return {
+        valid: false,
+        reason: `Sender (${senderSocketId}) is not in any room.`,
+      };
+    }
+
+    const targetRoom = this.socketToRoom.get(targetSocketId);
+    if (!targetRoom) {
+      return {
+        valid: false,
+        reason: `Target (${targetSocketId}) is not in any room.`,
+      };
+    }
+
+    if (senderRoom !== targetRoom) {
+      return {
+        valid: false,
+        reason: `Cross-room signaling attempt (${senderRoom} → ${targetRoom}).`,
+      };
+    }
+
+    return {
+      valid: true,
+      roomId: senderRoom,
+    };
+  }
+
+  // Utiltiy for relay signals
+  relaySignal({ socket, targetSocketId, payload, eventName, senderField }) {
+    // fix 3.1: Validate payload
+    if (!payload) {
+      console.warn(`[SECURITY] Invalid ${eventName} payload from ${socket.id}`);
+      return;
+    }
+
+    // fix 3.2: Validate target socket id
+    if (typeof targetSocketId !== "string") {
+      console.warn(`[SECURITY] Invalid targetSocketId from ${socket.id}`);
+      return;
+    }
+
+    // fix 4: Validate peer communication
+    const validation = this.validatePeerCommunication(
+      socket.id,
+      targetSocketId,
+    );
+
+    if (!validation.valid) {
+      console.warn(`[SECURITY] ${validation.reason}`);
+      return;
+    }
+
+    console.log(
+      `[SIGNALING] Forwarding ${eventName} from ${socket.id} to ${targetSocketId}`,
+    );
+
+    console.log(payload);
+    this.io.to(targetSocketId).emit(eventName, {
+      payload,
+      [senderField]: socket.id,
+    });
+  }
+
   initialize() {
     this.io.on("connection", async (socket) => {
       console.log(`[SIGNALING] Client connected: ${socket.id}`);
@@ -185,13 +260,12 @@ export class SignalingService {
        * We forward this offer to Peer B so they can create a matching answer.
        */
       socket.on("offer", ({ offer, targetSocketId }) => {
-        console.log(
-          `[SIGNALING] Forwarding offer from ${socket.id} to ${targetSocketId}`,
-        );
-
-        this.io.to(targetSocketId).emit("offer", {
-          offer,
-          callerSocketId: socket.id,
+        this.relaySignal({
+          socket,
+          targetSocketId,
+          payload: offer,
+          eventName: "offer",
+          senderField: "callerSocketId",
         });
       });
 
@@ -203,13 +277,12 @@ export class SignalingService {
        * We forward this answer back to Peer A to complete the negotiation.
        */
       socket.on("answer", ({ answer, targetSocketId }) => {
-        console.log(
-          `[SIGNALING] Forwarding answer from ${socket.id} to ${targetSocketId}`,
-        );
-
-        this.io.to(targetSocketId).emit("answer", {
-          answer,
-          answererSocketId: socket.id,
+        this.relaySignal({
+          socket,
+          targetSocketId,
+          payload: answer,
+          eventName: "answer",
+          senderField: "answererSocketId",
         });
       });
 
@@ -232,13 +305,12 @@ export class SignalingService {
        * peers wouldn't know each other's public IPs and couldn't connect.
        */
       socket.on("ice-candidate", ({ candidate, targetSocketId }) => {
-        console.log(
-          `[SIGNALING] Forwarding ICE candidate from ${socket.id} to ${targetSocketId}`,
-        );
-
-        this.io.to(targetSocketId).emit("ice-candidate", {
-          candidate,
-          senderSocketId: socket.id,
+        this.relaySignal({
+          socket,
+          targetSocketId,
+          payload: candidate,
+          eventName: "ice-candidate",
+          senderField: "senderSocketId",
         });
       });
 
@@ -261,7 +333,14 @@ export class SignalingService {
   }
 
   handleJoinRoom(socket, roomId) {
-    if (!roomId || typeof roomId !== "string" || !roomId.trim()) {
+    // fix 2: add two more validations
+    if (
+      !roomId ||
+      typeof roomId !== "string" ||
+      !roomId.trim() ||
+      roomId.length !== 6 ||
+      !/^[A-Z0-9]{6}$/.test(roomId)
+    ) {
       socket.emit("join-error", { message: "Invalid room ID" });
       return;
     }

@@ -398,7 +398,7 @@ class WebRTCService {
         );
         return;
       }
-
+      console.log(candidate);
       await pc.addIceCandidate(new RTCIceCandidate(candidate));
       console.log("[WEBRTC] ICE candidate added from:", peerId);
     } catch (error) {
