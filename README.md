@@ -14,7 +14,7 @@ This architecture reduces server bandwidth usage, improves privacy, and provides
 
 ---
 
-# Features
+## Features
 
 ## Current Features
 
@@ -30,7 +30,7 @@ This architecture reduces server bandwidth usage, improves privacy, and provides
 
 ---
 
-# Architecture
+## Architecture
 
 ```text
                     ┌────────────────────────┐
@@ -59,9 +59,11 @@ This architecture reduces server bandwidth usage, improves privacy, and provides
                      File Transfer
 ```
 
+<img width="1070" height="1071" alt="Screenshot 2026-07-02 034745" src="https://github.com/user-attachments/assets/999b16a0-9429-46c4-bf66-322824b49de3" />
+
 ---
 
-# Technology Stack
+## Technology Stack
 
 ## Frontend
 
@@ -91,7 +93,7 @@ This architecture reduces server bandwidth usage, improves privacy, and provides
 
 ---
 
-# 📂 Project Structure
+## 📂 Project Structure
 
 ```text
 project-root/
@@ -119,7 +121,7 @@ project-root/
 
 ---
 
-# How It Works
+## How It Works
 
 ## 1. User Opens Application
 
@@ -187,7 +189,7 @@ The backend never receives any file data.
 
 ---
 
-# Security
+## Security
 
 All transfers use WebRTC DataChannels which provide:
 
@@ -199,7 +201,7 @@ No transferred files are stored on the backend.
 
 ---
 
-# Visitor Statistics
+## Visitor Statistics
 
 The application tracks lightweight metadata such as:
 
@@ -212,7 +214,7 @@ This allows statistics to persist across deployments while keeping the applicati
 
 ---
 
-# Networking Concepts
+## Networking Concepts
 
 This project demonstrates practical implementation of:
 
@@ -227,7 +229,7 @@ This project demonstrates practical implementation of:
 
 ---
 
-# Running the Project
+## Running the Project
 
 ## Clone Repository
 
@@ -304,7 +306,7 @@ npm run dev
 
 ---
 
-# 🤝 Contributing
+## 🤝 Contributing
 
 Contributions, suggestions, and feedback are welcome.
 
@@ -312,6 +314,6 @@ If you'd like to improve the project, feel free to open an issue or submit a pul
 
 ---
 
-# 📄 License
+## 📄 License
 
 This project is licensed under the MIT License.
