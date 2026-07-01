@@ -156,7 +156,14 @@ export class SignalingService {
   }
 
   // Utiltiy for relay signals
-  relaySignal({ socket, targetSocketId, payload, eventName, senderField }) {
+  relaySignal({
+    socket,
+    targetSocketId,
+    payloadKey,
+    payload,
+    eventName,
+    senderField,
+  }) {
     // fix 3.1: Validate payload
     if (!payload) {
       console.warn(`[SECURITY] Invalid ${eventName} payload from ${socket.id}`);
@@ -184,9 +191,8 @@ export class SignalingService {
       `[SIGNALING] Forwarding ${eventName} from ${socket.id} to ${targetSocketId}`,
     );
 
-    console.log(payload);
     this.io.to(targetSocketId).emit(eventName, {
-      payload,
+      [payloadKey]: payload,
       [senderField]: socket.id,
     });
   }
@@ -263,6 +269,7 @@ export class SignalingService {
         this.relaySignal({
           socket,
           targetSocketId,
+          payloadKey: "offer",
           payload: offer,
           eventName: "offer",
           senderField: "callerSocketId",
@@ -280,6 +287,7 @@ export class SignalingService {
         this.relaySignal({
           socket,
           targetSocketId,
+          payloadKey: "answer",
           payload: answer,
           eventName: "answer",
           senderField: "answererSocketId",
@@ -308,6 +316,7 @@ export class SignalingService {
         this.relaySignal({
           socket,
           targetSocketId,
+          payloadKey: "candidate",
           payload: candidate,
           eventName: "ice-candidate",
           senderField: "senderSocketId",
