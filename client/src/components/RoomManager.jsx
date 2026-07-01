@@ -67,7 +67,11 @@ export default function RoomManager({
   const handleCreateRoom = () => {
     setLocalError(null);
     setIsProcessing(true);
-    const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+    // fix 1: generate cryptographically secure roomId
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    const array = new Uint8Array(6);
+    crypto.getRandomValues(array);
+    const roomId = Array.from(array, (x) => chars[x % chars.length]).join("");
     onJoinRoom(roomId);
   };
 
