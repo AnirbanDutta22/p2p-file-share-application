@@ -1048,6 +1048,22 @@ body {
   text-align: center;
 }
 
+.github-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  opacity: 0.75;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.github-link:hover {
+  opacity: 1;
+  transform: scale(1.08);
+}
+
 /* ── Responsive ─────────────────────────────────── */
 
 @media (max-width: 640px) {
